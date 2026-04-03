@@ -1,81 +1,35 @@
 [![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/1PuxbblI)
 [![Open in Visual Studio Code](https://classroom.github.com/assets/open-in-vscode-2e0aaae1b6195c2367325f4f02e2d04e9abb55f0b24a779b69b11b9e10269abc.svg)](https://classroom.github.com/online_ide?assignment_repo_id=23406014&assignment_repo_type=AssignmentRepo)
-# Group Project Repository 
 
-Welcome to CS494: Agentic AI **Group Project repository**   
+# CustomerIntel — Multi-Agent System for Customer Feedback Analysis
 
-This repository is for your **_project submission and milestone tracking_**.
-
-- You may develop your code elsewhere (e.g., in your personal GitHub repositories), but you must commit and push your code here regularly to track progress and meet the scheduled check-ins or milestones.
-- You may also develop directly in this repository, committing your work as you progress.
-
-We have three remaining milestones related to code submission. Please make sure that your code is updated and pushed to the repository for each milestone:
-    1. Proposal
-    2. Project check-in
-    3. Final Code Submission
-> _Note_: No late submissions are allowed for the **project related** submission. 
----
-## Project Overview
-
-Each team is tasked with designing and implementing a multi-agent system (MAS). Your project should demonstrate how multiple agents interact, coordinate, or solve a problem as a system.  
-
----
-
-## Submission Guidelines
-
-1. **Code Submission:**  
-   - You may submit your code at any stage of development in this repository.  
-   - Ensure that your "final working code" is complete and available here by the submission deadline.  
-
-2. **Documentation:**  
-   - You are expected to replace this `README.md` with a professional project README.  
-   - Your README should include:  
-     - Team members’ names  
-     - Project description  
-     - Clear instructions on how to run the code  
-
-3. **Instructions on Running the Code:**  
-   Your README must clearly explain:  
-   - Environment requirements (e.g., Python version, Node.js, libraries)  
-   - Installation steps (e.g., `pip install -r requirements.txt`)  
-   - How to execute the code (commands, scripts, or examples)  
-   - Example input/output (if applicable)  
-
----
-
-## Example README Structure (for reference)
-
-Below is an example of how a professional README might be structured. **You are expected to write your own professional and complete README for your project.**
-
-
-### Project Name
-Multi-Agent Task Coordinator
+**CS 494 Agentic AI | Spring 2026 | University of Illinois Chicago**
 
 ### Team Members
-- Alice Andrews (alice123)  - project lead, agentic design
-- Bob McKinsey (bob456) - backend development, system integration
-- Charles Ken (charles789) - Testing, documentation 
+- Rounak Deshpande (rdeshp9@uic.edu)
+- Pranshu Bansal (pbans@uic.edu)
+- Shivanshi Shukla (sshuk7@uic.edu)
+- Mithil Ravulapalli (vravu3@uic.edu)
+- Ethan Van (evan9@uic.edu)
 
-### Description
-This project implements a multi-agent task coordination system in which agents communicate to allocate tasks efficiently and resolve conflicts dynamically.
+---
 
-### Requirements
-- Python 3.10+  
-- Packages: `numpy`, `networkx`  
+## Description
 
-### Installation
-Run the following commands:
+CustomerIntel is a multi-agent AI system that transforms unstructured customer feedback (reviews, support tickets, surveys) into actionable business intelligence. A pipeline of five specialized LLM-powered agents — coordinated via LangGraph — handles retrieval, diagnosis, strategy generation, and adversarial quality control.
 
-```bash
-git clone https://github.com/<team-repo>/<project>.git
-cd <project>
-pip install -r requirements.txt
+---
 
-```
-### Running the project
-```
-python main.py
-```
+### Agent Architecture
 
-### Results / Demo (optional)
-...
+| Agent | Role | Reasoning Pattern |
+|-------|------|-------------------|
+| Orchestrator | Coordinates workflow, synthesizes final report | ReAct |
+| Data Intelligence | RAG retrieval + sentiment analysis | ReAct + Query Refinement |
+| Diagnosis | Root cause analysis | Chain-of-Thought + Self-Reflection |
+| Strategy | Generates prioritized recommendations | Multi-Perspective Reasoning |
+| Critic | Adversarial quality control, forces revisions | Adversarial Critique |
+
+---
+
+> **Status:** In-progress — Proposal milestone submission. Agent nodes are functional stubs; LLM integration is the next implementation step.
