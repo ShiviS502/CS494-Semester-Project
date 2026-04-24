@@ -103,15 +103,26 @@ Reasoning pattern: Multi-Perspective Reasoning with Reflection
 
 STRATEGY_GENERATION_PROMPT = """Diagnosed Root Causes: {root_causes}
 
-Generate a strategic response. For each root cause, propose at least 2 solution alternatives.
+Generate a strategic response. For each root cause, propose at least 3 solution alternatives.
 For each solution include:
 1. Clear action description
-2. Cost estimate (Low/Medium/High)
-3. Expected impact (Low/Medium/High)
-4. Implementation timeline (weeks)
-5. Success metrics
+2. Cost-benefit summary (combine cost estimate Low/Medium/High and expected impact)
+3. Priority rank (1 = highest priority, based on impact-vs-effort)
+4. Implementation timeline (in weeks)
+5. Risk mitigation approach (specific contingency or safeguard)
+6. Success metrics (measurable KPIs)
 
-Then recommend a prioritized implementation plan."""
+Return ONLY a JSON array with no extra text, using this exact schema:
+[
+  {{
+    "option": "...",
+    "cost_benefit": "...",
+    "priority": 1,
+    "timeline": "...",
+    "risk_mitigation": "...",
+    "success_metrics": "..."
+  }}
+]"""
 
 STRATEGY_REVISION_PROMPT = """Your previous strategy was critiqued. Here is the critique:
 
@@ -119,8 +130,22 @@ STRATEGY_REVISION_PROMPT = """Your previous strategy was critiqued. Here is the 
 
 Previous Strategy: {strategies}
 
+Root Causes: {root_causes}
+
 Revise your strategy to address every point raised in the critique.
-Be specific and quantitative where possible. Return the full revised strategy."""
+Be specific and quantitative where possible.
+
+Return ONLY a JSON array with no extra text, using this exact schema:
+[
+  {{
+    "option": "...",
+    "cost_benefit": "...",
+    "priority": 1,
+    "timeline": "...",
+    "risk_mitigation": "...",
+    "success_metrics": "..."
+  }}
+]"""
 
 
 CRITIC_SYSTEM = """You are the Critic Agent in a multi-agent customer feedback analysis system.
