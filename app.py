@@ -38,8 +38,40 @@ with st.sidebar:
     st.title("⚙️ Configuration")
 
     st.subheader("API Key Status")
-    anthropic_ok = bool(ANTHROPIC_API_KEY)
-    openai_ok = bool(OPENAI_API_KEY)
+    
+    anthropic_input = st.text_input(
+        "Anthropic API",
+        type = "password",
+        placeholder = "sk-ant...",
+        help = "Get your key at console.anthropic.com"
+    )
+    
+    openai_input = st.text_input(
+        "OpenAI API",
+        type = "password",
+        placeholder = "sk-...",
+        help = "Get your key at platform.openai.com/api-keys"
+    )
+
+    if anthropic_input:
+        os.environ["ANTHROPIC_API_KEY"] = anthropic_input.strip()
+    if openai_input:
+        os.environp["OPENAI_API_KEY"] = openai_input.strip()
+
+    import customerintel.config as _cfg
+    importlib.reload(_cfg)
+    import customerintel.agents.orchestrator as _orch
+    import customerintel.agents.data_intelligence as _di
+    import customerintel.agents.diagnosis as _diag
+    import customerintel.agents.strategy as _strat
+    import customerintel.agents.critic as _crit
+    for _mod in (_orch, _di, _diag, _strat, _crit):
+        importlib.reload(_mod)
+
+    anthropic_ok = bool(os.environ.get("ANTHROPIC_API_KEY", ""))
+    openai_ok = bool(os.environ.get("OPENAI_API_KEY", ""))
+    #anthropic_ok = bool(ANTHROPIC_API_KEY)
+    #openai_ok = bool(OPENAI_API_KEY)
     st.markdown(
         f"{'✅' if anthropic_ok else '❌'} **Anthropic** "
         f"({'set' if anthropic_ok else 'missing — add to .env'})"
