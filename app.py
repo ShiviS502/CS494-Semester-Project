@@ -74,11 +74,11 @@ with st.sidebar:
     #openai_ok = bool(OPENAI_API_KEY)
     st.markdown(
         f"{'✅' if anthropic_ok else '❌'} **Anthropic** "
-        f"({'set' if anthropic_ok else 'missing — add to .env'})"
+        f"({'set' if anthropic_ok else 'missing — add above in Anthropic API section'})"
     )
     st.markdown(
         f"{'✅' if openai_ok else '❌'} **OpenAI** "
-        f"({'set' if openai_ok else 'missing — add to .env'})"
+        f"({'set' if openai_ok else 'missing — add above in OpenAI API section'})"
     )
     if not anthropic_ok or not openai_ok:
         st.info(
