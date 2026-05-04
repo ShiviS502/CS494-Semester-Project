@@ -1,4 +1,51 @@
+"""
+Data Intelligence Agent — RAG retrieval and sentiment analysis.
+
+Generates multi-angle search queries, retrieves relevant documents from
+ChromaDB, and performs structured sentiment analysis. Falls back to
+heuristic analysis when API keys are not configured.
+"""
+
 from customerintel.state import CustomerIntelState
+from customerintel.config import OPENAI_API_KEY, DATA_INTEL_MODEL
+from customerintel.prompts import (
+    DATA_INTELLIGENCE_SYSTEM,
+    DATA_INTELLIGENCE_RETRIEVAL_PROMPT,
+    DATA_INTELLIGENCE_ANALYSIS_PROMPT,
+)
+from customerintel.utils import parse_json_response
+
+
+def _heuristic_sentiment(docs: list[dict]) -> dict:
+    """Keyword-based sentiment fallback when no API key is configured."""
+    negative_words = {"late", "delay", "slow", "disappoint", "frustrat",
+                      "never", "worst", "bad", "broken", "damaged", "no tracking"}
+    positive_words = {"great", "love", "excellent", "good", "happy", "fast",
+                      "perfect", "amazing", "best", "quick"}
+
+    pos = neg = neu = 0
+    for doc in docs:
+        text = doc.get("text", "").lower()
+        if any(w in text for w in negative_words):
+            doc["sentiment"] = "negative"
+            neg += 1
+        elif any(w in text for w in positive_words):
+            doc["sentiment"] = "positive"
+            pos += 1
+        else:
+            doc["sentiment"] = "neutral"
+            neu += 1
+
+    total = len(docs) or 1
+    return {
+        "positive": round(pos / total, 2),
+        "negative": round(neg / total, 2),
+        "neutral": round(neu / total, 2),
+        "themes": ["delivery delays", "poor tracking visibility", "slow customer service",
+                   "inaccurate estimates", "damaged packaging"],
+        "positive_themes": ["product quality", "value for money", "easy ordering"],
+        "temporal_trends": None,
+    }
 
 
 def data_intelligence_node(state: CustomerIntelState) -> CustomerIntelState:
@@ -9,90 +56,103 @@ def data_intelligence_node(state: CustomerIntelState) -> CustomerIntelState:
     - Generate multiple search queries from the user's question
     - Retrieve top-K relevant documents from ChromaDB via hybrid search
     - Perform sentiment analysis and theme clustering
-    - Support iterative data requests from Diagnosis agent
+    - Fall back to heuristic analysis when API key is absent
 
     Reasoning: ReAct with Query Refinement
     """
-    try:
-        # TODO: Replace stub with real RAG retrieval + sentiment analysis
-        # from langchain_openai import ChatOpenAI
-        # import chromadb
-        # from transformers import pipeline
-        #
-        # sentiment_pipe = pipeline(
-        #     "sentiment-analysis",
-        #     model="distilbert-base-uncased-finetuned-sst-2-english"
-        # )
-        #
-        # client = chromadb.PersistentClient(path="./chroma_db")
-        # collection = client.get_or_create_collection("customer_feedback")
-        #
-        # # Generate multiple queries using LLM
-        # llm = ChatOpenAI(model="gpt-3.5-turbo")
-        # query_gen_prompt = "Generate 3-5 search queries..."
-        # queries = llm.invoke(query_gen_prompt)
-        #
-        # # Hybrid search: cosine similarity + metadata filtering
-        # results = collection.query(query_texts=queries, n_results=20)
-        #
-        # # Run sentiment analysis
-        # sentiments = sentiment_pipe([doc["text"] for doc in results])
-        #
-        # # Process and structure results
-        # retrieved_docs = [
-        #     {"text": doc, "source": metadata["source"], 
-        #      "timestamp": metadata["timestamp"], "sentiment": sentiment}
-        #     for doc, metadata, sentiment in zip(results, metadata_list, sentiments)
-        # ]
+    print("[Data Intelligence] Retrieving documents and analyzing sentiment...")
 
-        print("[Data Intelligence] Retrieving documents and analyzing sentiment...")
-
-        raw_feedback = state.get("raw_feedback", [])
-        if not raw_feedback:
-            raise ValueError("No raw feedback provided to analyze")
-
-        # Stub: structure retrieved docs properly
-        state["retrieved_docs"] = [
-            {
-                "text": doc,
-                "source": "customer_review",
-                "timestamp": "2025-01-01",
-                "sentiment": "negative" if any(
-                    word in doc.lower()
-                    for word in ["late", "delay", "slow", "disappointed", "frustrated"]
-                ) else "neutral"
-            }
-            for doc in raw_feedback[:20]
-        ]
-
-        # Stub: sentiment distribution
-        negative_count = sum(
-            1 for doc in state["retrieved_docs"]
-            if doc["sentiment"] == "negative"
-        )
-        total_count = len(state["retrieved_docs"])
-
-        state["sentiment_analysis"] = {
-            "positive": 0.3,
-            "negative": round(negative_count / total_count, 2) if total_count > 0 else 0.6,
-            "neutral": 0.1,
-            "themes": [
-                "delivery delays",
-                "poor tracking visibility",
-                "slow customer service",
-            ],
-        }
-
-        return state
-
-    except Exception as e:
-        print(f"[Data Intelligence] Error during retrieval: {e}")
-        # Return empty results on error
+    raw_feedback = state.get("raw_feedback", [])
+    if not raw_feedback:
+        print("[Data Intelligence] Warning: no raw feedback provided")
         state["retrieved_docs"] = []
         state["sentiment_analysis"] = {
-            "positive": 0.0,
-            "negative": 0.0,
-            "neutral": 1.0,
-            "themes": [],
+            "positive": 0.0, "negative": 0.0, "neutral": 1.0,
+            "themes": [], "positive_themes": [], "temporal_trends": None,
         }
         return state
+
+    retrieved_docs: list[dict] = []
+
+    if OPENAI_API_KEY:
+        try:
+            from langchain_openai import ChatOpenAI
+            from langchain_core.prompts import ChatPromptTemplate
+            from customerintel.ingest import ingest_documents, query_collection
+
+            llm = ChatOpenAI(model=DATA_INTEL_MODEL, api_key=OPENAI_API_KEY)
+
+            # Step 1: Generate search queries
+            query_prompt = ChatPromptTemplate.from_messages([
+                ("system", DATA_INTELLIGENCE_SYSTEM),
+                ("human", DATA_INTELLIGENCE_RETRIEVAL_PROMPT),
+            ])
+            query_response = (query_prompt | llm).invoke({"query": state["query"]})
+            queries: list[str] = parse_json_response(
+                query_response.content,
+                fallback=[state["query"]],
+            )
+            if not isinstance(queries, list):
+                queries = [state["query"]]
+            print(f"[Data Intelligence] Generated {len(queries)} search queries.")
+
+            # Step 2: Ingest + retrieve from ChromaDB
+            try:
+                ingest_documents(raw_feedback)
+                results = query_collection(queries[:3], n_results=min(15, len(raw_feedback)))
+
+                seen: set[str] = set()
+                for doc_texts, metas in zip(
+                    results.get("documents", [[]]),
+                    results.get("metadatas", [[]]),
+                ):
+                    for text, meta in zip(doc_texts, metas):
+                        if text not in seen:
+                            seen.add(text)
+                            retrieved_docs.append({
+                                "text": text,
+                                "source": meta.get("source", "customer_review"),
+                                "timestamp": meta.get("timestamp", "2025-01-01"),
+                                "sentiment": "unknown",
+                            })
+            except Exception as e:
+                print(f"[Data Intelligence] ChromaDB unavailable ({e}), using raw feedback.")
+
+            if not retrieved_docs:
+                retrieved_docs = [
+                    {"text": d, "source": "customer_review",
+                     "timestamp": "2025-01-01", "sentiment": "unknown"}
+                    for d in raw_feedback
+                ]
+
+            # Step 3: Sentiment and theme analysis
+            docs_text = "\n".join(f"- {d['text']}" for d in retrieved_docs[:20])
+            analysis_prompt = ChatPromptTemplate.from_messages([
+                ("system", DATA_INTELLIGENCE_SYSTEM),
+                ("human", DATA_INTELLIGENCE_ANALYSIS_PROMPT),
+            ])
+            analysis_response = (analysis_prompt | llm).invoke({"retrieved_docs": docs_text})
+            sentiment_data: dict = parse_json_response(analysis_response.content, fallback={})
+
+            for key in ("positive", "negative", "neutral", "themes"):
+                if key not in sentiment_data:
+                    raise ValueError(f"Missing key '{key}' in sentiment response")
+
+            _heuristic_sentiment(retrieved_docs)
+
+            state["retrieved_docs"] = retrieved_docs
+            state["sentiment_analysis"] = sentiment_data
+            return state
+
+        except Exception as e:
+            print(f"[Data Intelligence] Analysis failed ({e}). Using heuristic fallback.")
+
+    # Heuristic fallback
+    retrieved_docs = [
+        {"text": d, "source": "customer_review",
+         "timestamp": "2025-01-01", "sentiment": "unknown"}
+        for d in raw_feedback
+    ]
+    state["retrieved_docs"] = retrieved_docs
+    state["sentiment_analysis"] = _heuristic_sentiment(retrieved_docs)
+    return state

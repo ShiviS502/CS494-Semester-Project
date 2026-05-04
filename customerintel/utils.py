@@ -1,4 +1,4 @@
-"""Shared utilities for LLM response parsing."""
+"""Shared utilities for response parsing."""
 
 import json
 import re
@@ -6,7 +6,7 @@ import re
 
 def parse_json_response(text: str, fallback=None):
     """
-    Parse JSON from an LLM response that may contain markdown code fences.
+    Parse JSON from a text response that may contain markdown code fences.
 
     Attempts json.loads on the raw text, then on text with fences stripped,
     then uses a greedy regex to find the first JSON object or array.

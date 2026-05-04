@@ -1,110 +1,111 @@
+"""
+Orchestrator Agent — final synthesis using Claude Sonnet.
+
+Synthesises outputs from all upstream agents into an executive report.
+Falls back to a structured text formatter when ANTHROPIC_API_KEY is not set.
+"""
+
 from customerintel.state import CustomerIntelState
-from customerintel.prompts import ORCHESTRATOR_SYNTHESIS_PROMPT
+from customerintel.config import ANTHROPIC_API_KEY, ORCHESTRATOR_MODEL
+from customerintel.prompts import ORCHESTRATOR_SYSTEM, ORCHESTRATOR_SYNTHESIS_PROMPT
+
+
+def _format_report(state: CustomerIntelState) -> str:
+    """Deterministic text formatter used as fallback (no LLM needed)."""
+    query = state.get("query", "Unknown query")
+    sentiment = state.get("sentiment_analysis", {})
+    root_causes = state.get("root_causes", [])
+    strategies = state.get("strategies", [])
+    iteration_count = state.get("iteration_count", 0)
+
+    lines = [
+        "=" * 70,
+        "CUSTOMERINTEL ANALYSIS REPORT",
+        "=" * 70,
+        f"\nQUERY: {query}",
+        f"\n{'─' * 70}",
+        "1. SENTIMENT OVERVIEW",
+        f"{'─' * 70}",
+        f"  Positive : {sentiment.get('positive', 0):.0%}",
+        f"  Negative : {sentiment.get('negative', 0):.0%}",
+        f"  Neutral  : {sentiment.get('neutral', 0):.0%}",
+    ]
+
+    themes = sentiment.get("themes", [])
+    if themes:
+        lines.append(f"  Key negative themes: {', '.join(themes)}")
+    pos_themes = sentiment.get("positive_themes", [])
+    if pos_themes:
+        lines.append(f"  Key positive themes: {', '.join(pos_themes)}")
+
+    if root_causes:
+        lines += [f"\n{'─' * 70}", "2. ROOT CAUSES IDENTIFIED", f"{'─' * 70}"]
+        for i, cause in enumerate(root_causes, 1):
+            lines.append(f"\n  {i}. {cause.get('cause', 'Unknown cause')}")
+            lines.append(f"     Confidence: {cause.get('confidence', 0):.0%}")
+            evidence = cause.get("evidence", [])
+            if evidence:
+                lines.append("     Evidence:")
+                for ev in evidence:
+                    lines.append(f"       • {ev}")
+
+    if strategies:
+        lines += [f"\n{'─' * 70}", "3. RECOMMENDED STRATEGY", f"{'─' * 70}"]
+        for i, s in enumerate(strategies, 1):
+            lines.append(f"\n  {i}. [{s.get('priority', i)}] {s.get('option', 'Unknown')}")
+            lines.append(f"     Timeline       : {s.get('timeline', 'TBD')}")
+            lines.append(f"     Cost-Benefit   : {s.get('cost_benefit', 'TBD')}")
+            lines.append(f"     Risk Mitigation: {s.get('risk_mitigation', 'None specified')}")
+            lines.append(f"     Success Metrics: {s.get('success_metrics', 'TBD')}")
+
+    lines += [
+        f"\n{'─' * 70}",
+        "4. PROCESS METADATA",
+        f"{'─' * 70}",
+        f"  Critic revision cycles: {iteration_count}",
+        f"  Status: Complete",
+        "=" * 70,
+    ]
+    return "\n".join(lines)
 
 
 def orchestrator_node(state: CustomerIntelState) -> CustomerIntelState:
     """
-    Orchestrator Agent node.
+    Orchestrator Agent node (final synthesis pass).
 
     Responsibilities:
-    - On first call: parse query, initialize state, create execution plan
-    - On final call (after Critic approval): synthesize final report from all agent outputs
+    - Synthesise sentiment analysis, root causes, and approved strategy
+    - Produce an executive-level final report
 
-    Reasoning: ReAct pattern — Reason about workflow, Act to coordinate agents
+    Reasoning: ReAct — Reason over all agent outputs, Act to compose report
     """
-    try:
-        # TODO: Replace stub with real LLM call using LangChain
-        # from langchain_anthropic import ChatAnthropic
-        # from langchain_core.prompts import ChatPromptTemplate
-        # from customerintel.prompts import ORCHESTRATOR_SYSTEM, ORCHESTRATOR_SYNTHESIS_PROMPT
-        #
-        # llm = ChatAnthropic(model="claude-sonnet-4-6")
-        # prompt = ChatPromptTemplate.from_messages([
-        #     ("system", ORCHESTRATOR_SYSTEM),
-        #     ("human", ORCHESTRATOR_SYNTHESIS_PROMPT),
-        # ])
-        # chain = prompt | llm
-        # response = chain.invoke({
-        #     "query": state["query"],
-        #     "sentiment_analysis": state.get("sentiment_analysis", {}),
-        #     "root_causes": state.get("root_causes", []),
-        #     "strategies": state.get("strategies", []),
-        # })
-        # return {**state, "final_report": response.content}
+    print("[Orchestrator] Synthesising final report from all agent outputs...")
 
-        print("[Orchestrator] Synthesizing final report from all agent outputs...")
+    if ANTHROPIC_API_KEY:
+        try:
+            from langchain_anthropic import ChatAnthropic
+            from langchain_core.prompts import ChatPromptTemplate
 
-        query = state.get("query", "Unknown query")
-        root_causes = state.get("root_causes", [])
-        strategies = state.get("strategies", [])
-        iteration_count = state.get("iteration_count", 0)
-        sentiment = state.get("sentiment_analysis", {})
-
-        # Stub: structured final report
-        report_lines = [
-            "=" * 70,
-            f"CUSTOMERINTEL ANALYSIS REPORT",
-            "=" * 70,
-            f"\nQUERY: {query}",
-            f"\n{'=' * 70}",
-            f"FINDINGS",
-            f"{'=' * 70}",
-            f"\nSentiment Distribution:",
-            f"  - Positive: {sentiment.get('positive', 0):.0%}",
-            f"  - Negative: {sentiment.get('negative', 0):.0%}",
-            f"  - Neutral: {sentiment.get('neutral', 0):.0%}",
-            f"\nTop Themes: {', '.join(sentiment.get('themes', []))}",
-        ]
-
-        if root_causes:
-            report_lines.extend([
-                f"\n{'=' * 70}",
-                f"ROOT CAUSES IDENTIFIED",
-                f"{'=' * 70}",
+            llm = ChatAnthropic(
+                model=ORCHESTRATOR_MODEL,
+                api_key=ANTHROPIC_API_KEY,
+                max_tokens=2048,
+            )
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", ORCHESTRATOR_SYSTEM),
+                ("human", ORCHESTRATOR_SYNTHESIS_PROMPT),
             ])
-            for i, cause in enumerate(root_causes, 1):
-                report_lines.extend([
-                    f"\n{i}. {cause.get('cause', 'Unknown cause')}",
-                    f"   Confidence: {cause.get('confidence', 0):.0%}",
-                    f"   Evidence:",
-                ])
-                for evidence in cause.get('evidence', []):
-                    report_lines.append(f"   - {evidence}")
+            response = (prompt | llm).invoke({
+                "query": state.get("query", ""),
+                "sentiment_analysis": str(state.get("sentiment_analysis", {})),
+                "root_causes": str(state.get("root_causes", [])),
+                "strategies": str(state.get("strategies", [])),
+            })
+            state["final_report"] = response.content
+            return state
 
-        if strategies:
-            report_lines.extend([
-                f"\n{'=' * 70}",
-                f"RECOMMENDED STRATEGY",
-                f"{'=' * 70}",
-            ])
-            for i, strategy in enumerate(strategies, 1):
-                report_lines.extend([
-                    f"\n{i}. {strategy.get('option', 'Unknown option')} (Priority {strategy.get('priority', 0)})",
-                    f"   Timeline: {strategy.get('timeline', 'TBD')}",
-                    f"   Cost-Benefit: {strategy.get('cost_benefit', 'TBD')}",
-                    f"   Risk Mitigation: {strategy.get('risk_mitigation', 'None specified')}",
-                    f"   Success Metrics: {strategy.get('success_metrics', 'TBD')}",
-                ])
+        except Exception as e:
+            print(f"[Orchestrator] LLM call failed ({e}); using text formatter.")
 
-        report_lines.extend([
-            f"\n{'=' * 70}",
-            f"PROCESS METADATA",
-            f"{'=' * 70}",
-            f"Critic revision cycles: {iteration_count}",
-            f"Status: Complete",
-            "=" * 70,
-        ])
-
-        state["final_report"] = "\n".join(report_lines)
-
-        return state
-
-    except Exception as e:
-        print(f"[Orchestrator] Error during synthesis: {e}")
-        # Return error report on failure
-        state["final_report"] = (
-            f"ERROR: Failed to synthesize report.\n"
-            f"Query: {state.get('query', 'Unknown')}\n"
-            f"Error: {str(e)}"
-        )
-        return state
+    state["final_report"] = _format_report(state)
+    return state

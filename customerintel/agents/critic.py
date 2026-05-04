@@ -1,16 +1,16 @@
-import json
+"""
+Critic Agent — adversarial quality control using Claude Sonnet.
 
-from langchain_anthropic import ChatAnthropic
-from langchain_core.prompts import ChatPromptTemplate
+Evaluates strategy proposals against root causes with Socratic questioning.
+Enforces a maximum of MAX_ITERATIONS revision cycles.
+Falls back to a structured stub when ANTHROPIC_API_KEY is not set.
+"""
 
 from customerintel.state import CustomerIntelState
+from customerintel.config import ANTHROPIC_API_KEY, CRITIC_MODEL
 from customerintel.prompts import CRITIC_SYSTEM, CRITIC_EVALUATION_PROMPT
 
 MAX_ITERATIONS = 3
-
-# using sonnet here because critic need strong reasoning to catch problems in strategy
-# haiku sometime miss subtle issues, sonnet is better for adversarial evaluation
-llm = ChatAnthropic(model="claude-sonnet-4-6")
 
 
 def critic_node(state: CustomerIntelState) -> CustomerIntelState:
@@ -18,48 +18,72 @@ def critic_node(state: CustomerIntelState) -> CustomerIntelState:
     Critic Agent node.
 
     Responsibilities:
-    - Adversarially evaluate the Strategy agent's proposals
-    - Identify logical inconsistencies, missing cost analysis, or unaddressed root causes
-    - Return a structured critique or APPROVE
-    - Enforce loop termination: approve unconditionally at MAX_ITERATIONS
+    - Adversarially evaluate Strategy agent proposals
+    - Identify logical gaps, missing cost analysis, or unaddressed root causes
+    - Return a structured critique or APPROVED
+    - Enforce loop termination: auto-approve at MAX_ITERATIONS
 
     Reasoning: Adversarial Critique with Socratic Questioning
     """
-    try:
-        current_iteration = state.get("iteration_count", 0) + 1
+    current_iteration = state.get("iteration_count", 0) + 1
+    state["iteration_count"] = current_iteration
 
-        # iteration cap check must happen BEFORE the LLM call
-        # otherwise we waste tokens on a call that we will approve anyway
-        if current_iteration >= MAX_ITERATIONS:
-            print(
-                f"[Critic] Iteration cap reached ({MAX_ITERATIONS}). "
-                f"Approving best available strategy."
+    # Hard cap — always approve at max iterations regardless of API availability
+    if current_iteration >= MAX_ITERATIONS:
+        print(f"[Critic] Iteration cap ({MAX_ITERATIONS}) reached. Auto-approving strategy.")
+        state["critique"] = None
+        state["critique_approved"] = True
+        return state
+
+    print(f"[Critic] Evaluating strategy (iteration {current_iteration}/{MAX_ITERATIONS})...")
+
+    if ANTHROPIC_API_KEY:
+        try:
+            from langchain_anthropic import ChatAnthropic
+            from langchain_core.prompts import ChatPromptTemplate
+
+            llm = ChatAnthropic(
+                model=CRITIC_MODEL,
+                api_key=ANTHROPIC_API_KEY,
+                max_tokens=1024,
             )
-            return {**state, "iteration_count": current_iteration, "critique": None, "critique_approved": True}
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", CRITIC_SYSTEM),
+                ("human", CRITIC_EVALUATION_PROMPT),
+            ])
+            response = (prompt | llm).invoke({
+                "root_causes": str(state.get("root_causes", [])),
+                "strategies": str(state.get("strategies", [])),
+                "iteration_count": current_iteration,
+            })
 
-        print(f"[Critic] Evaluating strategy — iteration {current_iteration} of {MAX_ITERATIONS}...")
+            content = response.content.strip()
+            if "APPROVED" in content.upper():
+                print(f"[Critic] Strategy APPROVED on iteration {current_iteration}.")
+                state["critique"] = None
+                state["critique_approved"] = True
+            else:
+                print(f"[Critic] Strategy REJECTED on iteration {current_iteration}.")
+                state["critique"] = content
+                state["critique_approved"] = False
+            return state
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", CRITIC_SYSTEM),
-            ("human", CRITIC_EVALUATION_PROMPT),
-        ])
+        except Exception as e:
+            print(f"[Critic] LLM call failed ({e}); using stub logic.")
 
-        chain = prompt | llm
-        response = chain.invoke({
-            "root_causes": json.dumps(state.get("root_causes", []), indent=2),
-            "strategies": json.dumps(state.get("strategies", []), indent=2),
-            "iteration_count": current_iteration,
-        })
+    # ── Stub fallback: reject on first pass, approve on second ───────────────
+    if current_iteration >= 2:
+        print(f"[Critic] Strategy approved (stub) on iteration {current_iteration}.")
+        state["critique"] = None
+        state["critique_approved"] = True
+    else:
+        print(f"[Critic] Returning stub critique (iteration {current_iteration}).")
+        state["critique"] = (
+            "Missing elements identified: "
+            "(1) No contingency plan if primary carrier partnership fails. "
+            "(2) Tracking integration cost estimate lacks breakdown by engineering vs. licensing. "
+            "(3) Delivery estimate adjustment needs explicit A/B test success threshold and rollback plan."
+        )
+        state["critique_approved"] = False
 
-        # check for APPROVED keyword in response — prompt says model should return this word
-        if "APPROVED" in response.content:
-            print(f"[Critic] Strategy approved on iteration {current_iteration}.")
-            return {**state, "iteration_count": current_iteration, "critique": None, "critique_approved": True}
-        else:
-            print(f"[Critic] Iteration {current_iteration}: critique returned, strategy needs revision.")
-            return {**state, "iteration_count": current_iteration, "critique": response.content, "critique_approved": False}
-
-    except Exception as e:
-        print(f"[Critic] Error during evaluation: {e}")
-        # on error we approve so the pipeline dont get stuck forever
-        return {**state, "iteration_count": state.get("iteration_count", 0) + 1, "critique": None, "critique_approved": True}
+    return state
