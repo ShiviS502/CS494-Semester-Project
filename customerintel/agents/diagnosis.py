@@ -11,6 +11,9 @@ from customerintel.config import ANTHROPIC_API_KEY, DIAGNOSIS_MODEL
 from customerintel.prompts import DIAGNOSIS_SYSTEM, DIAGNOSIS_ANALYSIS_PROMPT
 from customerintel.utils import parse_json_response
 
+MAX_RETRIEVAL_ITERATIONS = 3
+CONFIDENCE_THRESHOLD = 0.70
+
 _STUB_CAUSES = [
     {
         "cause": "Logistics/delivery failure following warehouse relocation",
@@ -57,7 +60,9 @@ def diagnosis_node(state: CustomerIntelState) -> CustomerIntelState:
 
     retrieved_docs = state.get("retrieved_docs", [])
     sentiment = state.get("sentiment_analysis", {})
-
+    
+    iteration_count = state.get("diagnosis_iteration_count", 0)
+    
     if ANTHROPIC_API_KEY:
         try:
             from langchain_anthropic import ChatAnthropic
@@ -67,6 +72,7 @@ def diagnosis_node(state: CustomerIntelState) -> CustomerIntelState:
                 model=DIAGNOSIS_MODEL,
                 api_key=ANTHROPIC_API_KEY,
                 max_tokens=2048,
+                temperature=0,
             )
             prompt = ChatPromptTemplate.from_messages([
                 ("system", DIAGNOSIS_SYSTEM),
@@ -80,11 +86,21 @@ def diagnosis_node(state: CustomerIntelState) -> CustomerIntelState:
             })
 
             root_causes = parse_json_response(response.content, fallback=None)
+            
             if isinstance(root_causes, list) and root_causes:
                 for cause in root_causes:
                     cause.setdefault("confidence", 0.5)
                     cause.setdefault("evidence", [])
                 state["root_causes"] = root_causes
+                
+                max_conf = max([c.get("confidence", 0) for c in root_causes])
+                if max_conf < CONFIDENCE_THRESHOLD and iteration_count < MAX_RETRIEVAL_ITERATIONS:
+                    print(f"[Diagnosis] Low confidence ({max_conf}); triggering re-retrieval.")
+                    state["needs_more_data"] = True
+                    state["diagnosis_iteration_count"] = iteration_count + 1
+                else:
+                    state["needs_more_data"] = False
+                
                 return state
 
             print("[Diagnosis] Could not parse response as JSON; using default causes.")
@@ -93,4 +109,5 @@ def diagnosis_node(state: CustomerIntelState) -> CustomerIntelState:
             print(f"[Diagnosis] Analysis failed ({e}); using default causes.")
 
     state["root_causes"] = _STUB_CAUSES
+    state["needs_more_data"] = False
     return state
