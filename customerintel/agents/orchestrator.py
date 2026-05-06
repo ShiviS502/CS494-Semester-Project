@@ -100,6 +100,7 @@ def orchestrator_node(state: CustomerIntelState) -> CustomerIntelState:
                 "sentiment_analysis": str(state.get("sentiment_analysis", {})),
                 "root_causes": str(state.get("root_causes", [])),
                 "strategies": str(state.get("strategies", [])),
+                "critic_log": str(state.get("critic_log", [])),
             })
             state["final_report"] = response.content
             return state
