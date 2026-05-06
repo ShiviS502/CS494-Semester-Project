@@ -37,6 +37,9 @@ Root Causes Identified:
 Approved Strategy:
 {strategies}
 
+Critic Revision History:
+{critic_log}
+
 Produce a concise, executive-level final report structured as follows:
 1. MAIN FINDING — one-sentence headline
 2. ROOT CAUSES — each cause with evidence and confidence score
