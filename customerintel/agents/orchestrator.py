@@ -57,6 +57,12 @@ def _format_report(state: CustomerIntelState) -> str:
             lines.append(f"     Cost-Benefit   : {s.get('cost_benefit', 'TBD')}")
             lines.append(f"     Risk Mitigation: {s.get('risk_mitigation', 'None specified')}")
             lines.append(f"     Success Metrics: {s.get('success_metrics', 'TBD')}")
+    
+    critic_log = state.get("critic_log", [])
+    if critic_log:
+        lines += [f"\n{'─' * 70}", "5. CRITIC REVISION LOG", f"{'─' * 70}"]
+        for i, entry in enumerate(critic_log, 1):
+            lines.append(f"  Cycle {i}: {entry[:100]}...")
 
     lines += [
         f"\n{'─' * 70}",
