@@ -37,7 +37,7 @@ Root Causes Identified:
 Approved Strategy:
 {strategies}
 
-Critic Revision History:
+Critic Revision History (Cycles Completed: {iteration_count}):
 {critic_log}
 
 Produce a concise, executive-level final report structured as follows:
