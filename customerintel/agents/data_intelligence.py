@@ -44,7 +44,7 @@ def _heuristic_sentiment(docs: list[dict]) -> dict:
         "themes": ["delivery delays", "poor tracking visibility", "slow customer service",
                    "inaccurate estimates", "damaged packaging"],
         "positive_themes": ["product quality", "value for money", "easy ordering"],
-        "temporal_trends": None,
+        "temporal_trends": "",
     }
 
 
@@ -63,12 +63,13 @@ def data_intelligence_node(state: CustomerIntelState) -> CustomerIntelState:
     print("[Data Intelligence] Retrieving documents and analyzing sentiment...")
 
     raw_feedback = state.get("raw_feedback", [])
+    is_re_retrieval = state.get("needs_more_data", False)
     if not raw_feedback:
         print("[Data Intelligence] Warning: no raw feedback provided")
         state["retrieved_docs"] = []
         state["sentiment_analysis"] = {
             "positive": 0.0, "negative": 0.0, "neutral": 1.0,
-            "themes": [], "positive_themes": [], "temporal_trends": None,
+            "themes": [], "positive_themes": [], "temporal_trends": "",
         }
         return state
 
@@ -99,7 +100,7 @@ def data_intelligence_node(state: CustomerIntelState) -> CustomerIntelState:
             # Step 2: Ingest + retrieve from ChromaDB
             try:
                 ingest_documents(raw_feedback)
-                results = query_collection(queries[:3], n_results=min(15, len(raw_feedback)))
+                results = query_collection(queries, n_results=min(15, len(raw_feedback)))
 
                 seen: set[str] = set()
                 for doc_texts, metas in zip(
@@ -134,11 +135,9 @@ def data_intelligence_node(state: CustomerIntelState) -> CustomerIntelState:
             analysis_response = (analysis_prompt | llm).invoke({"retrieved_docs": docs_text})
             sentiment_data: dict = parse_json_response(analysis_response.content, fallback={})
 
-            for key in ("positive", "negative", "neutral", "themes"):
+            for key in ("positive", "negative", "neutral", "themes", "temporal_trends"):
                 if key not in sentiment_data:
                     raise ValueError(f"Missing key '{key}' in sentiment response")
-
-            _heuristic_sentiment(retrieved_docs)
 
             state["retrieved_docs"] = retrieved_docs
             state["sentiment_analysis"] = sentiment_data
@@ -148,11 +147,9 @@ def data_intelligence_node(state: CustomerIntelState) -> CustomerIntelState:
             print(f"[Data Intelligence] Analysis failed ({e}). Using heuristic fallback.")
 
     # Heuristic fallback
-    retrieved_docs = [
-        {"text": d, "source": "customer_review",
-         "timestamp": "2025-01-01", "sentiment": "unknown"}
+    state["retrieved_docs"] = [
+        {"text": d, "source": "customer_review", "timestamp": "2025-01-01", "sentiment": "unknown"}
         for d in raw_feedback
     ]
-    state["retrieved_docs"] = retrieved_docs
-    state["sentiment_analysis"] = _heuristic_sentiment(retrieved_docs)
+    state["sentiment_analysis"] = _heuristic_sentiment(state["retrieved_docs"])
     return state
