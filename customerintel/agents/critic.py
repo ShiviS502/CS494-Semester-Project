@@ -66,6 +66,9 @@ def critic_node(state: CustomerIntelState) -> CustomerIntelState:
                 print(f"[Critic] Strategy REJECTED on iteration {current_iteration}.")
                 state["critique"] = content
                 state["critique_approved"] = False
+                if "critic_log" not in state:
+                    state["critic_log"] = []
+                state["critic_log"].append(content)
             return state
 
         except Exception as e:
@@ -78,12 +81,16 @@ def critic_node(state: CustomerIntelState) -> CustomerIntelState:
         state["critique_approved"] = True
     else:
         print(f"[Critic] Returning stub critique (iteration {current_iteration}).")
-        state["critique"] = (
+        stub_text = (
             "Missing elements identified: "
             "(1) No contingency plan if primary carrier partnership fails. "
             "(2) Tracking integration cost estimate lacks breakdown by engineering vs. licensing. "
             "(3) Delivery estimate adjustment needs explicit A/B test success threshold and rollback plan."
         )
+        state["critique"] = stub_text
         state["critique_approved"] = False
+        if "critic_log" not in state:
+            state["critic_log"] = []
+        state["critic_log"].append(stub_text)
 
     return state
