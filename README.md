@@ -124,16 +124,13 @@ README.md                    # This file
 - ✅ ChromaDB skeleton (awaiting OpenAI embeddings)
 - ✅ Functional stubs demonstrating agent behavior
 - ✅ CLI entry point with sample customer feedback
-
-### ⏳ Next Steps (Implementation Phase)
-
-- [ ] Integrate OpenAI embeddings for ChromaDB
-- [ ] Connect Claude API for Orchestrator, Diagnosis, Critic, Strategy agents
-- [ ] Implement DistilBERT sentiment classifier
-- [ ] Add real ChromaDB retrieval with hybrid search
-- [ ] Build Streamlit frontend for visualization
-- [ ] Run full 12-task evaluation suite
-- [ ] Optimize LLM model selection per agent
+- ✅ Integrate OpenAI embeddings for ChromaDB
+- ✅ Connect Claude API for Orchestrator, Diagnosis, Critic, Strategy agents
+- ✅ Implement DistilBERT sentiment classifier
+- ✅ Add real ChromaDB retrieval with hybrid search
+- ✅ Build Streamlit frontend for visualization
+- ✅ Run full 12-task evaluation suite
+- ✅ Optimize LLM model selection per agent
 
 ---
 
