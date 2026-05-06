@@ -144,8 +144,8 @@ README.md                    # This file
 Create a `.env` file in the project root:
 
 ```bash
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-your-key-here
+ANTHROPIC_API_KEY=sk-your-key-here
 CHROMA_PATH=./chroma_db
 ```
 

@@ -62,3 +62,4 @@ Thumbs.db
 # Project specific
 __pycache__/
 .gradescope/
+.claude/
